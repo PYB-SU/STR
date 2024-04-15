@@ -1,7 +1,7 @@
 
 
 # change to "paper"
-setwd("C:/Users/boelle/Desktop/Nanopore_ONT/paper")
+#setwd("C:/Users/boelle/Desktop/Nanopore_ONT/paper")
 
 setwd("C:/Users/boelle/nextcloud_SU/paper")
 
@@ -423,6 +423,9 @@ process.one.gene(DIR = "2022_GEN_OPDM_pilote10",root_dir = root_dir,gene = "LRP1
                  QUALITY = 20, IDENTITY = 0.9, 
                  query=c("GAC", "GCC"),ncommon=0,first.codon="GAC",rev.seq = TRUE, repeat.codon="GCC")
 
+process.one.gene(DIR = "2022_GEN_OPDM_pilote10",root_dir = root_dir,gene = "LRP12", caller = "dorado!hac",
+                 QUALITY = 20, IDENTITY = 0.9, 
+                 query=c("GAC", "GCC"),ncommon=0,first.codon="GAC",rev.seq = TRUE, repeat.codon="GCC")
 
 
 
@@ -498,7 +501,7 @@ saveDb(txdb, "C:/Users/boelle/nextcloud_SU/paper/TxDb.T2T-CHM13v2.0")
 save(repeat.coords, file = "C:/Users/boelle/nextcloud_SU/paper/repeats.rda")
 
 plot.methyl.fancy <- function(DIR,CALLER,gene,methyl, root="C:/Users/boelle/nextcloud_SU/paper/",
-                              from=NULL, to=NULL, type="s") {
+                              from=NULL, to=NULL, type="s", reads=c("short","long")) {
   #methyl is type of methylation, found in files
   # type.methyl 1 or 2 depends on what will be read in modkit
   if (type==1) {type.methyl=1}
@@ -531,12 +534,12 @@ plot.methyl.fancy <- function(DIR,CALLER,gene,methyl, root="C:/Users/boelle/next
   setwd(paste0(root,"/",DIR,"/",CALLER,"/",gene,"/METHYLATION/"))
   library(bsseq)
   # verifier que les fichiers existent
-  for (xx in c("long","short")) {
+  for (xx in reads) {
     if (!file.exists(paste0(root,"/",DIR,"/",CALLER,"/",gene,"/METHYLATION/",xx,"_",gene,"_",methyl,".bedmethyl")))
       stop(paste0("file ",xx,"_",gene,"_",methyl,".bedmethyl not found"))
   }
   # quoi faire sur les methylation
-  bs.methyl <- read.modkit(paste0(root,"/",DIR,"/",CALLER,"/",gene,"/METHYLATION/",c("long","short"),"_",gene,"_",methyl,".bedmethyl"), rmZeroCov = TRUE)
+  bs.methyl <- read.modkit(paste0(root,"/",DIR,"/",CALLER,"/",gene,"/METHYLATION/",reads,"_",gene,"_",methyl,".bedmethyl"), rmZeroCov = TRUE)
 
   if (type.methyl==1) {
     bs.methyl=list(bs.methyl[[1]])
@@ -578,7 +581,7 @@ plot.methyl.fancy <- function(DIR,CALLER,gene,methyl, root="C:/Users/boelle/next
     seqlevels(methyl.sm[[i]]@rowRanges) <- as.character(chrom(GENE))
     mat.methyl = rbind( mat.methyl,
                         t(getMeth(methyl.sm[[i]], type="smooth"))  )
-    names.methyl = c(names.methyl, paste0(c("long.","short."),i))
+    names.methyl = c(names.methyl, paste0(reads,".",i))
     mat.cov = rbind(mat.cov, t(getCoverage(methyl.sm[[i]], type="Cov")))
   }
   # depending on 
@@ -660,7 +663,7 @@ split.and.collapse <- function (DIR,CALLER, gene,methyl,context,root_dir) {
   # METHYL IS THE TYPE OF METHYL CALLED found in the name (5mC, 5mCG, 5mC_5hmC,5mCG_5hmCG,)
   # context is unfiltered / CPGfiltered
   # files are changed to m/h/a + context
-  for (x in c("short","long")) {
+  for (x in c("short","long","overlap")) {
     data=read.table(file=paste0(root_dir,"/",DIR,"/",CALLER,"/",gene,"/","METHYLATION","/",
                                 x,"_",gene,"_",methyl,"_",context,".bedmethyl"))
     for (mod in unique(data$V4)) {
@@ -698,7 +701,7 @@ check.short.long <- function(DIR,CALLER, root_dir) {
   res=c()
   for (gene in genes) {
     setwd(paste0(root_dir,"/",DIR,"/",CALLER,"/",gene,"/METHYLATION/"))
-    liste.files = dir(pattern="(long|short)[a-zA-Z0-9_]*.ids")
+    liste.files = dir(pattern="(long|short|overlap)[a-zA-Z0-9_]*.ids")
     for (file in liste.files) {
       if (file.size(file)>0) {
         tab <- read.table(file)
@@ -816,9 +819,50 @@ plot.methyl.fancy("DM1_pilote03_BC1","dorado_hac","DMPK",methyl = "m_unfiltered"
 plot.methyl.fancy("DM1_pilote03_BC1","dorado_hac","DMPK",methyl = "h_unfiltered",
                   root_dir, from=48594000, to= 48600000)
 
+#05-06
+split.and.collapse("2022_GEN_DM1_pilote05_06","dorado_hac","DMPK","5mCG_5hmCG","CPGfiltered",root_dir = root_dir)
+split.and.collapse("2022_GEN_DM1_pilote05_06","dorado_hac","DMPK","5mCG_5hmCG","unfiltered",root_dir = root_dir)
 
 
-  # OPDM
+plot.methyl.fancy("2022_GEN_DM1_pilote05_06","dorado_hac","DMPK",methyl = "m_CPGfiltered",
+                  reads="overlap",
+                  root_dir, from=48594000, to= 48600000)
+plot.methyl.fancy("2022_GEN_DM1_pilote05_06","dorado_hac","DMPK",methyl = "m_CPGfiltered",
+                  reads="overlap",
+                  root_dir, from=48594000, to= 48600000)
+
+plot.methyl.fancy("2022_GEN_DM1_pilote05_06","dorado_hac","DMPK",methyl = "m_unfiltered",
+                  reads="overlap",
+                  root_dir, from=48594000, to= 48600000)
+plot.methyl.fancy("2022_GEN_DM1_pilote05_06","dorado_hac","DMPK",methyl = "h_unfiltered",
+                  reads="overlap",
+                  root_dir, from=48594000, to= 48600000)
+
+
+#05-07
+split.and.collapse("2022_GEN_DM1_pilote05_07","dorado_hac","DMPK","5mCG_5hmCG","CPGfiltered",root_dir = root_dir)
+split.and.collapse("2022_GEN_DM1_pilote05_07","dorado_hac","DMPK","5mCG_5hmCG","unfiltered",root_dir = root_dir)
+
+plot.methyl.fancy("2022_GEN_DM1_pilote05_07","dorado_hac","DMPK",methyl = "m_CPGfiltered",
+                  reads="overlap",
+                  root_dir, from=48594000, to= 48600000)
+plot.methyl.fancy("2022_GEN_DM1_pilote05_07","dorado_hac","DMPK",methyl = "h_CPGfiltered",
+                  reads="overlap",
+                  root_dir, from=48594000, to= 48600000)
+
+plot.methyl.fancy("2022_GEN_DM1_pilote05_07","dorado_hac","DMPK",methyl = "m_unfiltered",
+                  reads="overlap",
+                  root_dir, from=48594000, to= 48600000)
+plot.methyl.fancy("2022_GEN_DM1_pilote05_07","dorado_hac","DMPK",methyl = "h_unfiltered",
+                  reads="overlap",
+                  root_dir, from=48594000, to= 48600000)
+
+
+
+
+
+
+# OPDM
 
 split.and.collapse("2022_GEN_OPDM_pilote03-PAM21431","dorado_hac","LRP12","5mCG_5hmCG","CPGfiltered",root_dir = root_dir)
 split.and.collapse("2022_GEN_OPDM_pilote03-PAM21431","dorado_hac","LRP12","5mCG_5hmCG","unfiltered",root_dir = root_dir)

@@ -10,6 +10,17 @@ liste_DIR=c("OPDM_pilote03")
 #
 root_dir = "C:/Users/boelle/nextcloud_SU/paper"
 
+# this function adds column 'col' to data.frame 'df'
+# it pads (fills) with NA if the column is longer than pre-existing df
+# example : 
+# df = 1 2      col = 5
+#      3 4            6
+#                     7
+# then result is 
+# df = 1  2  5
+#      3  4  6
+#      NA NA 7
+
 pad_df <- function(df, col) {
   require(dplyr)
   if(is.null(df)) {
@@ -25,21 +36,26 @@ pad_df <- function(df, col) {
   return(df)
 }
 
+# written by ChatGPT 
+# we used reverseComplement from Biostrings instead
 reverse_complement <- function(sequence) {
   # Définir la table de complément
   complement_table <- c("A" = "T", "T" = "A", "C" = "G", "G" = "C")
-  
   # Convertir la séquence en vecteur de caractères, inverser et trouver le complément pour chaque base
   complement_sequence <- sapply(strsplit(sequence, NULL)[[1]], function(base) complement_table[base])
-  
   # Rejoindre les bases pour former la séquence complémentaire
   reverse_complement_sequence <- paste(rev(complement_sequence), collapse = "")
-  
   return(reverse_complement_sequence)
 }
 
-reverse_complement("ACTG")
-
+# summarise all files of STR analyses in an excel file
+# loops over length of flanking sequences
+# extract sequences having the largest coverage
+# filter on average quality and identity of flanking sequences
+# align sequences starting on 'first.codon' found the closest to the beginning flanking sequence
+# stops sequence on the last 'repeat.codon' found the closest to the closing flanking sequence
+# writes an excel file with summary information and individual sheets 
+# then calls waterfall 
 process.one.gene<- function(DIR,root_dir, gene, query=NULL, ncommon=NULL, caller="guppy",
                             QUALITY=20,IDENTITY=0.9, rev.seq=FALSE, first.codon=NULL,repeat.codon=NULL) {
   #DIR : repertoire de base contenant les callers
@@ -233,6 +249,10 @@ process.one.gene<- function(DIR,root_dir, gene, query=NULL, ncommon=NULL, caller
   }
 
 
+# this loops over a directory/caller
+# finds all genes present
+# then call process.one.gene over each
+
 process.gene.files <- function(DIR,root_dir, query=NULL, ncommon=NULL, caller="guppy",QUALITY=20,IDENTITY=0.9) {
   #DIR : repertoire de base contenant les callers
   #CALLER : le caller (bonito, dorado..)
@@ -262,13 +282,17 @@ process.gene.files <- function(DIR,root_dir, query=NULL, ncommon=NULL, caller="g
 }
 
 
+# plot a waterfall 
+# query codons are matched in order. maybe best to first match "rare" alleles then common, otherwise
+# rare may be masked if overlaping with common
 
 plot.seq.waterfall <- function(seq, query=NULL, file_name, ncommon=NULL) {
   require(ggplot2)
   require(ggpubr)
   require(ggsci)
   
-  
+#this builds a table with column x1/x2 signalling begin/end of sequence 'seq'
+# sequences in query are matched in order  
   split.sequence.in.repeats <- function(x, seq, query) {
     # take the sequence
     seq_single <- seq[x]
@@ -356,7 +380,6 @@ plot.seq.waterfall <- function(seq, query=NULL, file_name, ncommon=NULL) {
 }
 
 
-
 liste_DIR = dir()
 
 
@@ -423,10 +446,13 @@ process.one.gene(DIR = "2022_GEN_OPDM_pilote10",root_dir = root_dir,gene = "LRP1
                  QUALITY = 20, IDENTITY = 0.9, 
                  query=c("GAC", "GCC"),ncommon=0,first.codon="GAC",rev.seq = TRUE, repeat.codon="GCC")
 
-process.one.gene(DIR = "2022_GEN_OPDM_pilote10",root_dir = root_dir,gene = "LRP12", caller = "dorado!hac",
+process.one.gene(DIR = "2022_GEN_OPDM_pilote10",root_dir = root_dir,gene = "LRP12", caller = "dorado_hac",
                  QUALITY = 20, IDENTITY = 0.9, 
                  query=c("GAC", "GCC"),ncommon=0,first.codon="GAC",rev.seq = TRUE, repeat.codon="GCC")
 
+process.one.gene(DIR = "2022_GEN_OPDM_pilote10",root_dir = root_dir,gene = "LRP12", caller = "bonito_hac",
+                 QUALITY = 20, IDENTITY = 0.9, 
+                 query=c("GAC", "GCC"),ncommon=0,first.codon="GAC",rev.seq = TRUE, repeat.codon="GCC")
 
 
 ######################

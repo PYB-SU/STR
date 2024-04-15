@@ -57,14 +57,15 @@ reverse_complement <- function(sequence) {
 # writes an excel file with summary information and individual sheets 
 # then calls waterfall 
 process.one.gene<- function(DIR,root_dir, gene, query=NULL, ncommon=NULL, caller="guppy",
-                            QUALITY=20,IDENTITY=0.9, rev.seq=FALSE, first.codon=NULL,repeat.codon=NULL) {
+                            QUALITY=20,IDENTITY=0.9, reverse=FALSE, complement=FALSE, first.codon=NULL,repeat.codon=NULL) {
   #DIR : repertoire de base contenant les callers
   #CALLER : le caller (bonito, dorado..)
   #query: liste des codons a retrouver, dans l'ordre de recherche.query[1] is the repeated sequence - should be in the desired sense
   #ncommon : nombre de codons communs a montrer (apres la query), 0 si aucun 
   #QUALITY : avg quality du read
   #IDENTITY : % of identity in the left+right sequences
-  #rev.seq : should sequences be reversed
+  #reverse : should sequences be reversed
+  #complement : should sequences be reversed
   #first.codon : first codon before repeats that will be searched to cut inital sequences 
   #repeat.codon : repeat codon that will be looked for to find stop in sequences 
   
@@ -191,7 +192,14 @@ process.one.gene<- function(DIR,root_dir, gene, query=NULL, ncommon=NULL, caller
       # get sequences as character
       seq = sread(filtered_read)
       
-      if (rev.seq) seq =  reverseComplement(seq)
+      if (reverse & complement) {
+        seq =  reverseComplement(seq)
+      } else if (reverse) {
+        seq =  reverse(seq)
+      } else if (complement) {
+        seq =  complement(seq)
+      } 
+
       #transform to a list of character strings
       seq = as.data.frame(seq)[,1]
       require(tidyr)

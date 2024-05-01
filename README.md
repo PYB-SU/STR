@@ -54,7 +54,7 @@ process.one.gene(DIR,root_dir, gene, query=NULL, ncommon=NULL, caller="guppy", Q
 ### plotMethylation.R
 takes files from the (M) step and plots methylation % and heatmap along genomic information using Gviz
 
-plot.methyl.fancy <- function(DIR,CALLER,gene,methyl, root="C:/Users/boelle/nextcloud_SU/paper/",
+      plot.methyl.fancy(DIR,CALLER,gene,methyl, root="C:/Users/boelle/nextcloud_SU/paper/",
                               from=NULL, to=NULL, type="s", reads=c("short","long"),coverage=FALSE, repeat.rows=NULL,focus=NULL) {
 - DIR : base directory containing caller subdirectories
 - CALLER : caller subdirectory (guppy, dorado_hac, bonito_hac)

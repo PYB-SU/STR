@@ -36,7 +36,33 @@ example:
 
 ## 2) graphical representation
 
-- geneAnalysis.R
-takes files from the (S) step above and makes a summary of identified repeats. Makes a plot of repeats found in reads
+### geneAnalysis.R
+takes files from the (S) step above and makes a summary of identified repeats. Makes a plot of repeats found in reads.
 
-- plotMethylation.R
+process.one.gene(DIR,root_dir, gene, query=NULL, ncommon=NULL, caller="guppy", QUALITY=20,IDENTITY=0.9, reverse=FALSE, complement=FALSE, first.codon=NULL,repeat.codon=NULL)
+- DIR : base directory containing caller subdirectories
+- CALLER : caller subdirectory (guppy, dorado_hac, bonito_hac)
+- query: list of sequences to highlight, these will be matched in order and colored differently
+- ncommon : frequent codons will be looked for in the sequences and add to query
+- QUALITY : minimum average quality of reads to keep
+- IDENTITY : % of identity in the left+right flanking sequences
+- reverse : should sequences be reversed
+- complement : should sequences be complemented
+- first.codon : first codon to register sequences 
+- repeat.codon : repeat codon that will be looked for to find stop in sequences
+
+### plotMethylation.R
+takes files from the (M) step and plots methylation % and heatmap along genomic information using Gviz
+
+plot.methyl.fancy <- function(DIR,CALLER,gene,methyl, root="C:/Users/boelle/nextcloud_SU/paper/",
+                              from=NULL, to=NULL, type="s", reads=c("short","long"),coverage=FALSE, repeat.rows=NULL,focus=NULL) {
+- DIR : base directory containing caller subdirectories
+- CALLER : caller subdirectory (guppy, dorado_hac, bonito_hac)
+- gene : gene symbol to look for in genomic information
+- root : root directory
+- from, to: coordinates to limit the graph - superseded if (focus not null)
+- methyl is type of methylation, found in files
+- reads : name of file with subgroup data
+- coverage : add coverage plot
+- repeat.rows : rowname of repeat to show in repeat track
+- focus = number of bases to show on each side of the repeat location in focussed plot

@@ -8,13 +8,13 @@ DIR base directory containing a FAST5 subdir
 GENE of interest. GENE information must be available in directory STR (using get_primer_and_flanking.sh)
 
 WHATTODO is a character chain with:
-      -  (B)onito for basecalling
-      -  (P)orechop+zip+minimap2
-      -  (O)verlap for extracting bam
-      -  (R)eads extraction
-      -  (C)harONT
-      -  (S)equence from reads
-      -  (M)ethylation from fast5
+-        (B)onito for basecalling
+-        (P)orechop+zip+minimap2
+-        (O)verlap for extracting bam
+-        (R)eads extraction
+-        (C)harONT
+-        (S)equence from reads
+-        (M)ethylation from fast5
 
 BONITO_MODEL and MEDAKA_MODEL is :
 -        HAC10 - uses dna_r10.4_e8.1_hac@v3.4 (bonito) and r1041_e82_400bps_hac (medaka)

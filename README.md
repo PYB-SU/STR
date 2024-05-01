@@ -28,3 +28,8 @@ MODIF specifies the type of methylation :
 -  5m : 5mc(bonito) , 5mCG (dorado)
 -  5m+5hmc : 5mc_5hmc (bonito) , 5mCG_5hmCG (dorado)
 -  6mA : 6mA (dorado)
+
+
+example: 
+
+  sh pipelineSTR.sh 2022_GEN_DM1_pilote01 DMPK BORCSM HAC10 HAC10 5mCG_5hmCG

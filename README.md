@@ -35,3 +35,8 @@ example:
   sh pipelineSTR.sh 2022_GEN_DM1_pilote01 DMPK BORCSM HAC10 HAC10 5mCG_5hmCG
 
 ## 2) graphical representation
+
+- geneAnalysis.R
+takes files from the (S) step above and makes a summary of identified repeats. Makes a plot of repeats found in reads
+
+- plotMethylation.R

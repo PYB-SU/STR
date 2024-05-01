@@ -2,6 +2,7 @@
 
 ## 1) pipelineSTR.sh
     sh pipeline_STR.sh DIR GENE WHATTODO BONITO_MODEL MEDAKA_MODEL MODIF
+The pipeline uses slurm dependence to sequence jobs
 
 DIR base directory containing a FAST5 subdir
 

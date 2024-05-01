@@ -33,3 +33,5 @@ MODIF specifies the type of methylation :
 example: 
 
   sh pipelineSTR.sh 2022_GEN_DM1_pilote01 DMPK BORCSM HAC10 HAC10 5mCG_5hmCG
+
+## 2) graphical representation

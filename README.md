@@ -1,7 +1,7 @@
 # Identifying repeat counts 
 
 ## 1) pipelineSTR.sh
--  sh pipeline_STR.sh DIR GENE WHATTODO BONITO_MODEL MEDAKA_MODEL MODIF
+    - sh pipeline_STR.sh DIR GENE WHATTODO BONITO_MODEL MEDAKA_MODEL MODIF
 
 DIR base directory containing a FAST5 subdir
 

@@ -1,7 +1,7 @@
 # Identifying repeat counts 
 
 ## 1) pipelineSTR.sh
-sh pipeline_STR.sh DIR GENE WHATTODO BONITO_MODEL MEDAKA_MODEL MODIF
+-  sh pipeline_STR.sh DIR GENE WHATTODO BONITO_MODEL MEDAKA_MODEL MODIF
 
 DIR base directory containing a FAST5 subdir
 
@@ -32,7 +32,7 @@ MODIF specifies the type of methylation :
 
 example: 
 
-  sh pipelineSTR.sh 2022_GEN_DM1_pilote01 DMPK BORCSM HAC10 HAC10 5mCG_5hmCG
+-   sh pipelineSTR.sh 2022_GEN_DM1_pilote01 DMPK BORCSM HAC10 HAC10 5mCG_5hmCG
 
 ## 2) graphical representation
 

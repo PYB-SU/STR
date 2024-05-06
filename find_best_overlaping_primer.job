@@ -1,0 +1,53 @@
+#!/bin/bash
+
+#SBATCH -n 1
+
+HERE=$1
+
+GENE=$2
+
+PIPELINEDIR=/scratch/ONT/STR/
+
+CUTOFF=0.5
+LOG=$HERE/find_best_overlaping_reads.log
+
+echo "looking for best PRIMERPOS" > $LOG
+echo "PRIMERPOS NB_READS">>$LOG
+
+#does the file exist ?
+if [ ! -f $HERE/OVERLAPS/overlap_$GENE.bam ]
+then
+    echo "file $HERE/OVERLAPS/overlap_$GENE.bam does not exist"
+    echo "check output of previous"
+    exit
+fi
+# loop on several PRIMERPOS / CUTOFF
+MAX_READS=0
+BESTPRIMER=100
+
+for PRIMERPOS in $(seq 50 50 1000)
+do
+    NB_READS_PRIMER=$(sh $PIPELINEDIR/reads_overlaping_repeat_region.job $HERE $GENE $PRIMERPOS $CUTOFF)
+    echo "$PRIMERPOS $NB_READS_PRIMER" >> $LOG
+    if [ $NB_READS_PRIMER -gt $MAX_READS ]
+    then
+	BESTPRIMER=$PRIMERPOS
+	MAX_READS=$NB_READS_PRIMER
+    fi
+done
+
+echo "best is $BESTPRIMER" >> $LOG
+
+#then select the best for further analysis
+zcat $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.fastq.gz > $HERE/$GENE/overlap_${GENE}.fastq
+zcat $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.fasta.gz > $HERE/$GENE/overlap_${GENE}.fasta
+cp $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/matched_overlap_${GENE}_common_reads.ids $HERE/$GENE
+
+echo "$HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.fastq.gz copied to $HERE/$GENE" >>$LOG
+echo "$HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.fasta.gz copied to $HERE/$GENE" >>$LOG
+
+rm -rf $HERE/$GENE/tmp_*
+
+echo "removed $HERE/$GENE/tmp_*" >> $LOG
+
+

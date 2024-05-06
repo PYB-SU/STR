@@ -1,0 +1,120 @@
+#!/bin/bash
+#SBATCH -n 8
+#SBATCH --mem 80G
+
+THREADS=8
+PIPELINEDIR=/scratch/ONT/STR/
+
+
+if [ $1 = "-h" ]
+then
+    echo "sbatch reads_overlaping_repeat_region.job GENE PRIMERPOS CUTOFF"
+    echo -e "\textract reads from overlap_GENE.bam that align with a primer +/-PRIMERPOS before and after with $CUTOFF identity"
+    echo -e "\texecute in charONT directory"
+    exit
+fi
+
+HERE=$1
+
+if [ "x"$HERE = "x" ]
+then
+    echo "ROOT DIRECTORY must be provided"
+    exit
+fi
+
+GENE=$2
+if [ "x"$GENE = "x" ]
+then
+    echo "GENE must be provided"
+    exit
+fi
+
+PRIMERPOS=$3
+if [ "x"$PRIMERPOS = "x" ]
+then
+    echo "PRIMERPOS must be provided"
+    exit
+fi
+
+CUTOFF=$4
+if [ "x"$CUTOFF = "x" ]
+then
+    echo "CUTOFF must be provided"
+    exit
+fi
+
+LOG=$HERE/repeat_overlaping_region_${GENE}_$PRIMERPOS.log
+
+OVERLAPDIR=$HERE/OVERLAPS
+RACINE=overlap_${GENE}
+
+echo "starting reeads_overlaping_repeat_region for $HERE/$GENE/$PRIMERPOS" > $LOG
+
+echo "using FASTQ file $OVERLAPDIR/$RACINE.fastq.gz" >> $LOG
+
+echo "using PRIMER located +/-$PRIMERPOS bp from repeat" >> $LOG
+
+echo "keeping reads with >$CUTOFF identity">>$LOG
+
+PRIMER=$PIPELINEDIR/$GENE/primers-
+
+cd $HERE/$GENE
+
+TARGETDIR=$HERE/$GENE/tmp_${PRIMERPOS}_${CUTOFF}
+if [ -d $TARGETDIR ]
+then
+    rm -rf $TARGETDIR
+fi
+mkdir $TARGETDIR
+
+echo "output to $TARGETDIR" >> $LOG
+
+if [ ! -f $OVERLAPDIR/$RACINE.fastq.gz ]
+then
+    echo "$RACINE.fastq.gz not found in $OVERLAPDIR" >>$LOG
+fi
+
+if [ -f $PIPELINEDIR/$GENE/primers-right-$PRIMERPOS.fa ]
+then
+    echo "using /scratch/ONT/STR/$GENE/primers-[left|right]-$PRIMERPOS.fa" >> $LOG
+else
+    echo "/scratch/ONT/STR/$GENE/primers-[left|right]-$PRIMERPOS.fa not found">>$LOG
+    echo "run /scratch/ONT/STR/get_primer_and_flanking_for_gene.sh PRIMERPOS">>$LOG
+fi
+
+cd $TARGETDIR
+echo "moving to $TARGETDIR" >> $LOG
+
+module load samtools
+
+module load BBmap
+
+for direction in left right
+do
+    msa.sh -Xmx80G in=$OVERLAPDIR/$RACINE.fastq.gz out=$TARGETDIR/$RACINE.$direction.sam ref=$PRIMER$direction-$PRIMERPOS.fa rcomp=t cutoff=$CUTOFF
+done
+module unload BBmap
+
+echo "mapped reads to primers">>$LOG
+
+#find matching 
+awk 'NR==FNR {seen3[$3]=$3; next} $3 in seen3 {print seen3[$3]}' $TARGETDIR/${RACINE}.left.sam $TARGETDIR/${RACINE}.right.sam | grep -v "*" > \
+    $TARGETDIR/matched_${RACINE}_common_reads.ids
+
+module load seqtk
+module load htslib
+
+seqtk subseq $OVERLAPDIR/$RACINE.fastq.gz $TARGETDIR/matched_${RACINE}_common_reads.ids | cut -d ' ' -f 1 | bgzip > $TARGETDIR/$RACINE.fastq.gz
+
+seqtk seq -A $TARGETDIR/$RACINE.fastq.gz | bgzip >  $TARGETDIR/${RACINE}.fasta.gz
+
+module unload seqtk
+module unload htslib
+module unload samtools
+
+
+NB_READS=$(wc -l $TARGETDIR/matched_${RACINE}_common_reads.ids | awk '{print $1}')
+
+echo "mapped $NB_READS reads to primers">>$LOG
+
+echo $NB_READS

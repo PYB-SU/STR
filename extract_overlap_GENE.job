@@ -1,0 +1,150 @@
+#!/bin/bash
+#SBATCH -n 8
+
+QUAL_RANGE=" 10 20 30"
+
+THREADS=8
+
+HERE=$1
+GENE=$2
+
+LOG=$HERE/extract_overlap_$GENE.log
+
+REF=/softs/references/Homo_sapiens.T2T/
+
+PIPELINEDIR=/scratch/ONT/STR
+
+if [ $GENE = "-h" ]
+then
+    echo "extract_overlap_GENE.job GENE HERE"
+    echo "get GENE coords by looking in PIPELINEDIR/GENE/GENE.specs"
+    echo "output file overlap_GENE.bam in HERE/OVERLAPS dir and index"
+    echo "loops on all BAM files in HERE/BAM"
+    exit
+fi
+
+echo "extracting reads overlapping $GENE" > $LOG
+echo "extracting reads overlapping $GENE"
+
+BAMDIR=$HERE/BAM
+
+echo "from bamfiles in $BAMDIR" >> $LOG
+echo "from bamfiles in $BAMDIR"
+
+COORDS=$(awk '{print $2":"$3"-"$4}' $PIPELINEDIR/$GENE/$GENE.specs)
+echo "$GENE position $COORDS" >> $LOG
+echo "$GENE position $COORDS"
+
+module load samtools
+
+if [ ! -d $HERE/OVERLAPS ]
+then
+    mkdir $HERE/OVERLAPS
+fi
+
+OVERLAPDIR=$HERE/OVERLAPS
+cd $OVERLAPDIR
+
+if [ -f overlap_$GENE.bam ]
+then
+    rm -f overlap_$GENE.bam overlap_$GENE.bam.bai
+    echo "removed previous overlap bam files and index for $GENE" >>  $LOG
+    echo "removed previous overlap bam files and index for $GENE"
+fi
+cd $BAMDIR
+
+NBBAMFILES=$(ls *.bam | wc -l)
+echo "found $NBBAMFILES bam files in $BAMDIR (not overlap files) ..looping"
+echo "found $NBBAMFILES bam files in $BAMDIR (not overlap files) ..looping" >> $LOG
+
+BAMFILES=$(ls *.bam | awk -F '.' '{print $1}' )
+
+mkdir $OVERLAPDIR/tmp$GENE
+cd $OVERLAPDIR
+
+for BAMFILE in $BAMFILES
+do
+    echo "samtools view -@ $THREADS -b $BAMFILE.bam $COORDS > overlap_${BAMFILE}_$GENE.bam" 
+    echo "samtools view -@ $THREADS -b $BAMFILE.bam $COORDS > overlap_${BAMFILE}_$GENE.bam"  >> $LOG
+    samtools view -@ $THREADS -b $BAMDIR/$BAMFILE.bam $COORDS > $OVERLAPDIR/tmp$GENE/overlap_${BAMFILE}_$GENE.bam
+    NBLINES=$(samtools view $OVERLAPDIR/tmp$GENE/overlap_${BAMFILE}_$GENE.bam | wc -l)
+    echo "done overlap in $BAMFILE" >> $LOG
+    echo "done overlap in $BAMFILE"
+    if [ $NBLINES -ge 1 ]
+    then
+	samtools index $OVERLAPDIR/tmp$GENE/overlap_${BAMFILE}_$GENE.bam
+    	echo "indexed overlap_${BAMFILE}_$GENE" >> $LOG
+	echo "indexed overlap_${BAMFILE}_$GENE"
+    else
+	rm $OVERLAPDIR/tmp$GENE/overlap_${BAMFILE}_$GENE.bam
+    	echo "removed overlap_${BAMFILE}_$GENE" >> $LOG
+	echo "removed overlap_${BAMFILE}_$GENE"	
+    fi
+done
+
+if [ $NBBAMFILES -gt 1 ]
+then
+    echo "merging $NBBAMFILES overlap bam files in $OVERLAPDIR/overlap_${GENE}_orig.bam"  >> $LOG
+    samtools merge -@ $THREADS -o $OVERLAPDIR/overlap_${GENE}_orig.bam $(ls $OVERLAPDIR/tmp$GENE/overlap_*_$GENE.bam)
+    samtools index $OVERLAPDIR/overlap_${GENE}_orig.bam
+else
+    echo "moving overlap file to $OVERLAPDIR/overlap_${GENE}_orig.bam"  >> $LOG
+    mv $OVERLAPDIR/tmp$GENE/overlap_*_$GENE.bam $OVERLAPDIR/overlap_${GENE}_orig.bam
+    mv $OVERLAPDIR/tmp$GENE/overlap_*_$GENE.bam.bai $OVERLAPDIR/overlap_${GENE}_orig.bam.bai    
+fi
+
+#rm -rf $OVERLAPDIR/tmp$GENE
+
+module load htslib
+module load seqtk
+
+samtools view -@ $THREADS -b -f 16 -F 32 -F 64 -F 128 -F 256 -F 512 -F 1024 $OVERLAPDIR/overlap_${GENE}_orig.bam | samtools fastq -@ $THREADS | bgzip -@ $THREADS  > $OVERLAPDIR/overlap_${GENE}_rev.fastq.gz
+echo "reverse reads in $OVERLAPDIR/overlap_${GENE}_rev.fastq.gz" >>$LOG
+
+samtools view -@ $THREADS -b -F 16 -F 32 -F 64 -F 128 -F 256 -F 512 -F 1024 $OVERLAPDIR/overlap_${GENE}_orig.bam | samtools fastq -@ $THREADS | seqtk seq -r | bgzip -@ $THREADS > $OVERLAPDIR/overlap_${GENE}_dir.fastq.gz
+echo "direct reads in $OVERLAPDIR/overlap_${GENE}_dir.fastq.gz" >>$LOG
+
+# put together
+zcat $OVERLAPDIR/overlap_${GENE}_rev.fastq.gz $OVERLAPDIR/overlap_${GENE}_dir.fastq.gz | bgzip > $OVERLAPDIR/overlap_${GENE}_Q0.fastq.gz
+
+echo "all reads same direction in $OVERLAPDIR/overlap_${GENE}_Q0.fastq.gz" >>$LOG
+
+#rm -f $OVERLAPDIR/overlap_${GENE}_rev.fastq.gz $OVERLAPDIR/overlap_${GENE}_dir.fastq.gz
+
+echo "removed $OVERLAPDIR/overlap_${GENE}_rev.fastq.gz $OVERLAPDIR/overlap_${GENE}_dir.fastq.gz" >>$LOG
+
+module load BBmap
+
+for QUAL in $QUAL_RANGE
+do
+    bbduk.sh in=$OVERLAPDIR/overlap_${GENE}_Q0.fastq.gz out=$OVERLAPDIR/overlap_${GENE}_Q$QUAL.fastq.gz maq=$QUAL
+    echo "reads filtered for quality $QUAL in $OVERLAPDIR/overlap_${GENE}_Q$QUAL.fastq.gz" >>$LOG
+done
+
+# make the bam files
+
+module unload BBmap
+module unload htslib
+module unload seqtk
+
+module load minimap2 
+
+for QUAL in 0 $QUAL_RANGE
+do
+    minimap2 -a -x map-ont $REF/chm13v2.0.mmi $OVERLAPDIR/overlap_${GENE}_Q$QUAL.fastq.gz | samtools view -b -F 32 -F 64 -F 128 -F 256 -F 512 -F 1024 -F 2048 | samtools sort -@ $THREADS > $OVERLAPDIR/overlap_${GENE}_Q$QUAL.bam
+    echo "mapping $OVERLAPDIR/overlap_${GENE}_Q$QUAL.fastq.gz to $OVERLAPDIR/overlap_${GENE}_Q$QUAL.bam">>$LOG
+    samtools index $OVERLAPDIR/overlap_${GENE}_Q$QUAL.bam
+    echo "indexing $OVERLAPDIR/overlap_${GENE}_Q$QUAL.bam">>$LOG
+
+done
+
+module unload minimap2
+
+# we get the Q30
+
+cp $OVERLAPDIR/overlap_${GENE}_Q0.fastq.gz $OVERLAPDIR/overlap_${GENE}.fastq.gz
+cp $OVERLAPDIR/overlap_${GENE}_Q0.bam $OVERLAPDIR/overlap_${GENE}.bam
+cp $OVERLAPDIR/overlap_${GENE}_Q0.bam.bai $OVERLAPDIR/overlap_${GENE}.bam.bai
+
+echo "copied $OVERLAPDIR/overlap_${GENE}_Q0.fastq.gz to $OVERLAPDIR/overlap_${GENE}.fastq.gz for further processing">>$LOG
+echo "copied $OVERLAPDIR/overlap_${GENE}_Q0.bam to $OVERLAPDIR/overlap_${GENE}.bam for further processing">>$LOG

@@ -20,6 +20,8 @@ Ce script nextflow prend en entrée un dossier "PIPELINE" qui contient différen
 
 Dans le dossier PIPELINE, doit contenir ces deux fichiers suivants : "reads_overlaping_repeat_region.job", "charONT.R"
 
+L'utilisateur a le choix de commencer par un fichier fastq ou bam, cela est définit dans le workflow selon le params.FASTQ
+
 */
 #!/usr/bin/env nextflow
 
@@ -861,7 +863,7 @@ process PileupMethylation {
 
 workflow {
 
-	//if ( params.FASTQ ) {
+	if ( params.FASTQ ) {
 // CALL TRIP ZIP MAP
 		Channel_fastq | porechop | mapping
 		
@@ -933,7 +935,7 @@ workflow {
 		Methyl_LOG = JoinTagsWithSAM.out.find { it.startsWith('LOG') }.split('=')[1]
 		Methyl_METHYLBAMFILE = JoinTagsWithSAM.out.find { it.startsWith('METHYLBAMFILE') }.split('=')[1]
 		PileupMethylation(Methyl_LOG, Methyl_METHYLBAMFILE)
-
+*/
 	} else {
 		
  
@@ -948,7 +950,7 @@ workflow {
     
 // READS
     	find_best_overlapping_reads(params.PIPELINEDIR, params.GENE)
-    
+/*    
 // CHARONT
     	charONT(params.CHARONT)
 
@@ -1001,8 +1003,9 @@ workflow {
 		Methyl_LOG = JoinTagsWithSAM.out.find { it.startsWith('LOG') }.split('=')[1]
 		Methyl_METHYLBAMFILE = JoinTagsWithSAM.out.find { it.startsWith('METHYLBAMFILE') }.split('=')[1]
 		PileupMethylation(Methyl_LOG, Methyl_METHYLBAMFILE)
-	}
 */
+	}
+
 
 }
 

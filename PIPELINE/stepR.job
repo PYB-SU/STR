@@ -1,0 +1,74 @@
+#!/bin/bash
+
+#SBATCH -n 1
+#SBATCH --time 24:0:0
+HERE=$1
+
+GENE=$2
+
+PIPELINEDIR=/home/boelle/STR/PIPELINE
+
+CUTOFF=0.5
+LOG=$HERE/find_best_overlaping_reads_$GENE.log
+
+echo "looking for best PRIMERPOS" > $LOG
+echo "PRIMERPOS NB_READS">>$LOG
+
+#does the file exist ?
+if [ ! -f $HERE/OVERLAPS/overlap_$GENE.bam ]
+then
+    echo "file $HERE/OVERLAPS/overlap_$GENE.bam does not exist"
+    echo "check output of previous"
+    exit
+fi
+#does the dir exist ?
+if [ ! -d $HERE/$GENE ]
+then
+    mkdir $HERE/$GENE
+    echo "created dir $HERE/$GENE"
+fi
+
+# loop on several PRIMERPOS / CUTOFF
+MAX_READS=0
+BESTPRIMER=100
+
+for PRIMERPOS in $(seq 50 50 250)
+do
+    NB_READS_PRIMER=$($PIPELINEDIR/reads_overlaping_repeat_region.job $HERE $GENE $PRIMERPOS $CUTOFF | tail -n 1)
+    
+    echo "$PRIMERPOS $NB_READS_PRIMER" >> $LOG
+    if [ $NB_READS_PRIMER -gt $MAX_READS ]
+    then
+	BESTPRIMER=$PRIMERPOS
+	MAX_READS=$NB_READS_PRIMER
+    fi
+done
+
+echo "best is $BESTPRIMER" >> $LOG
+
+#then select the best for further analysis
+rm -f $HERE/$GENE/*.fastq*
+rm -f $HERE/$GENE/*.fasta*
+rm -f $HERE/$GENE/*.bam*
+
+zcat $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.fastq.gz > $HERE/$GENE/overlap_${GENE}.fastq
+zcat $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}_unmatched.fastq.gz > $HERE/$GENE/overlap_${GENE}_unmatched.fastq
+cp $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.fasta $HERE/$GENE/overlap_${GENE}.fasta
+cp $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}_unmatched.fasta $HERE/$GENE/overlap_${GENE}_unmatched.fasta
+cp $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/matched_overlap_${GENE}_common_reads.ids $HERE/$GENE
+cp $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/unmatched_overlap_${GENE}_reads.ids $HERE/$GENE
+cp $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.right.ids $HERE/$GENE
+cp $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.left.ids $HERE/$GENE
+cp $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.bam $HERE/$GENE
+cp $HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}_unmatched.bam $HERE/$GENE
+
+
+echo "$HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.fastq.gz copied to $HERE/$GENE" >>$LOG
+echo "$HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.fasta.gz copied to $HERE/$GENE" >>$LOG
+echo "$HERE/$GENE/tmp_${BESTPRIMER}_$CUTOFF/overlap_${GENE}.bam copied to $HERE/$GENE" >>$LOG
+
+rm -rf $HERE/$GENE/tmp_*
+
+echo "removed $HERE/$GENE/tmp_*" >> $LOG
+
+

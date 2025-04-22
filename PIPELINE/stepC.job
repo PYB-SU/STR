@@ -1,0 +1,56 @@
+#!/bin/bash
+#SBATCH --nodes 1
+#SBATCH --tasks 1
+#SBATCH --cpus-per-task 2
+
+
+module load R/4.4.3
+module load medaka
+module load racon
+module load minimap2
+module load seqtk
+module load emboss
+module load trf
+module load BBmap
+module load mafft
+module load charONT
+
+HERE=$1
+if [ "x"$HERE = $HERE ]
+then
+    echo "provide ROOT directory"
+    exit
+fi
+
+GENE=$2
+if [ "x"$GENE = "x" ]
+then
+    echo "provide GENE"
+    exit
+fi
+
+MODEL=$3
+if [ "x"$MODEL = "x" ]
+then
+    echo "provide MODEL"
+    exit
+fi
+
+
+LOG=$HERE/$GENE/charONT_$GENE.log
+
+PIPELINEDIR=/home/boelle/STR/PIPELINE/
+
+echo "copy $PIPELINEDIR/config_CharONT_$MODEL.R to $HERE/$GENE/config_CharONT.R" > $LOG
+
+cp $PIPELINEDIR/config_CharONT_$MODEL.R $HERE/$GENE/config_CharONT.R
+
+echo "removing $HERE/$GENE/overlap_$GENE.gz" >> $LOG
+
+rm -Rf $HERE/$GENE/overlap_$GENE
+
+echo "running charONT on $HERE/$GENE" >> $LOG
+
+cd $HERE/$GENE
+Rscript $CHARONT/CharONT.R $HERE/$GENE $GENE
+

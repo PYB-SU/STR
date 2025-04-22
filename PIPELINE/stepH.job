@@ -1,0 +1,132 @@
+#!/bin/bash
+#SBATCH -n 1
+#SBATCH --time 24:00:00
+
+
+HERE=$1
+GENE=$2
+
+REFS=/softs/cinbios/references/Homo_sapiens.T2T
+STR_PIPELINE=/scratch/ONT/STR
+
+LOG=$HERE/compute_haplotypes_$GENE.log
+
+if [ $1 = "-h" ]
+then
+    echo "compute_haplotypes HERE GENE"
+    echo -e "\tcompute haplotypes from read in bamfiles"
+    echo -e "\tFinds variants in the region and parts reads according to variants"
+    echo -e "\tCompute size of repeated sections, then split according to long and short"
+    exit
+fi
+
+RACINE=overlap_$GENE
+GENEDIR=$HERE/$GENE/
+
+module load bcftools
+module load whatshap
+module load freebayes
+module load htslib
+module load samtools
+
+rm -f $HERE/$GENE/phased_SNPs_$GENE.vcf
+rm -f $HERE/$GENE/phased_SNPs_$GENE.vcf.gz
+rm -f $HERE/$GENE/phased_SNPs_$GENE.vcf.gz.csi
+
+samtools index  $HERE/$GENE/overlap_$GENE.bam
+echo "indexed $HERE/$GENE/overlap_$GENE.bam">>$LOG
+# we compute the number of reads in the overlap.bam
+NBREADSINBAM=$(samtools view $HERE/$GENE/overlap_$GENE.bam | wc -l)
+echo "found $NBREADSINBAM reads in $HERE/$GENE/overlap_$GENE.bam">>$LOG
+MINCOVERAGE=$(echo $NBREADSINBAM | awk '{print int($1*0.2)}')
+echo "minimum coverage for variants with frequency > 0.3 is $MINCOVERAGE" >>$LOG
+
+# call variants in bam file
+echo "running freebayes -q 20 -m 30 --min-alternate-fraction 0.2 -C 20 -f $REFS/chm13v2.0.fa $HERE/$GENE/overlap_$GENE.bam | bgzip | bcftools norm -a > $HERE/$GENE/variants_$GENE.vcf">>$LOG
+freebayes -q 20 -m 30 --min-alternate-fraction 0.3 -C $MINCOVERAGE -f $REFS/chm13v2.0.fa $HERE/$GENE/overlap_$GENE.bam | bgzip | bcftools norm -a > $HERE/$GENE/variants_$GENE.vcf
+echo "called variants in $HERE/$GENE/overlap_$GENE.bam">>$LOG
+echo "$(bcftools view -H $HERE/$GENE/variants_$GENE.vcf | wc -l) SNPs in  $HERE/$GENE/variants_$GENE.vcf">>$LOG
+# select variants
+bcftools view -i "QUAL>30 && INFO/DP>$MINCOVERAGE" --types=snps -m 2 -M 2 -g het $HERE/$GENE/variants_$GENE.vcf -o $HERE/$GENE/HQ_variants_$GENE.vcf
+NBSNPS=$(bcftools view -H $HERE/$GENE/HQ_variants_$GENE.vcf | wc -l)
+echo "$NBSNPS selected variants in $HERE/$GENE/HQ_variants_$GENE.vcf">>$LOG
+# depending on how many SNPS, we either phase directly or call whatshap
+if [ $NBSNPS -eq 0 ]
+then
+    echo "no SNPs available for phasing - putting everything in H1">>$LOG
+    samtools view $HERE/$GENE/overlap_${GENE}.bam | awk '{print $1" H1"}' > $HERE/$GENE/reads_H1_H2_$GENE.ids
+    echo "" > $HERE/$GENE/reads_H2_$GENE.ids
+    echo "extracted $(cat $HERE/$GENE/reads_H1_$GENE.ids | wc -l) read names for H1 in $HERE/$GENE/reads_H1_$GENE.ids">>$LOG
+    echo "extracted $(cat $HERE/$GENE/reads_H2_$GENE.ids | wc -l) read names for H2 in $HERE/$GENE/reads_H2_$GENE.ids">>$LOG
+else
+    if [ $NBSNPS -eq 1 ]
+    then
+    # phase only use one SNP
+    # we take the vcf file and change the 0/1 to 0|1, add :PS and :POS
+    awk 'BEGIN{FS=OFS="\t"} {if ($0 ~ /^#/) {print $0} else {gsub("0/1","0|1");$9=$9":PS";$10=$10":"$2;print $0}}' $HERE/$GENE/HQ_variants_$GENE.vcf > $HERE/$GENE/phased_SNPs_$GENE.vcf
+    echo "found 1 SNP - rewrote phased information">>$LOG
+    else
+	#more than 2 heterogeneous snps, phasing
+	# phase variants
+	whatshap phase --ignore-read-groups -o $HERE/$GENE/phased_SNPs_$GENE.vcf --reference=$REFS/chm13v2.0.fa $HERE/$GENE/HQ_variants_$GENE.vcf $HERE/$GENE/overlap_$GENE.bam
+	echo "found $NBSNPS SNPs - phased variants in $HERE/$GENE/phased_SNPs_$GENE.vcf">>$LOG
+    fi
+
+    # bgzip & index
+    bgzip -f $HERE/$GENE/phased_SNPs_$GENE.vcf
+    bcftools index $HERE/$GENE/phased_SNPs_$GENE.vcf.gz
+    echo "gzipped & indexed variants in $HERE/$GENE/phased_SNPs_$GENE.vcf.gz">>$LOG
+    # haplotag
+    whatshap haplotag --ignore-read-groups --output $HERE/$GENE/overlap_${GENE}_haplotagged.bam --reference $REFS/chm13v2.0.fa $HERE/$GENE/phased_SNPs_$GENE.vcf.gz $HERE/$GENE/overlap_$GENE.bam --output-haplotag-list $HERE/$GENE/haplo_$GENE.tsv
+    echo "haplotaged SNPs in $HERE/$GENE/haplo_$GENE.tsv">>$LOG
+    # then split
+    whatshap split --output-h1 $HERE/$GENE/overlap_${GENE}_H1.bam --output-h2 $HERE/$GENE/overlap_${GENE}_H2.bam $HERE/$GENE/overlap_$GENE.bam $HERE/$GENE/haplo_$GENE.tsv
+    echo "split bam according to haplotypes">>$LOG
+# get names from split bam
+    echo "" > $HERE/$GENE/reads_H1_H2_$GENE.ids
+    for hap in H1 H2
+    do
+	samtools view $HERE/$GENE/overlap_${GENE}_$hap.bam | awk -vHAP=$hap '{print $1" "HAP}' >> $HERE/$GENE/reads_H1_H2_$GENE.ids
+	echo "extracted read names for $hap in $HERE/$GENE/reads_H1_H2_$GENE.ids">>$LOG
+    done
+fi
+
+QUALITY=20
+IDENTITY=90
+
+ALLELE_INFO=$HERE/$GENE/overlap_${GENE}_all_100.summary
+if [ -f $ALLELE_INFO ]
+then
+    rm -f $HERE/$GENE/short_reads_${GENE}*.ids
+    rm -f $HERE/$GENE/long_reads_${GENE}*.ids
+    echo "found $HERE/$GENE/overlap_${GENE}_all_100.summary" >> $LOG
+    #filter reads having good quality : avg quality > 20, % identity > 90%
+   grep READ-MATCH $ALLELE_INFO | grep -v "+inf" | tr -d '@' | awk -vQUALITY=$QUALITY -vIDENTITY=$IDENTITY '{if (($7 > QUALITY) && ($28>IDENTITY) && ($29 >IDENTITY)) print $1" "$20}' | sort -n -k 2 > $HERE/$GENE/size_readsQ${QUALITY}ID${IDENTITY}_${GENE}.ids
+    # determine le plus grand gap entre la longueurs de deux reads successifs
+    # enlever les 2 premiers, 2 derniers qui peuvent etre bizares
+   THRESHOLD=$(head -n -2 $HERE/$GENE/size_readsQ${QUALITY}ID${IDENTITY}_${GENE}.ids | tail -n +2 |  awk 'BEGIN{maxgap=1}{if (FNR==1) {p=$2}{if (($2/(p+1))>maxgap) {idx=FNR; maxgap=$2/(p+1)}; p=$2}}END{print idx}')
+
+    #print idx because we removed first 2 rows
+    echo "computed $THRESHOLD reads small group" >> $LOG
+    THRESHOLD1=$(($THRESHOLD + 1))
+    echo "computed $THRESHOLD1" >> $LOG
+    echo "head -n $THRESHOLD size_readsQ${QUALITY}ID${IDENTITY}_${GENE}.ids > short_reads_${GENE}.ids" >> $LOG
+    head -n $THRESHOLD $HERE/$GENE/size_readsQ${QUALITY}ID${IDENTITY}_${GENE}.ids | awk '{print $1" short"}' > $HERE/$GENE/reads_short_long_${GENE}.ids
+    echo "$(wc -l $HERE/$GENE/short_reads_${GENE}.ids) reads in short_reads_${GENE}.ids" >>$LOG
+    echo " tail -n +$THRESHOLD1 size_readsQ${QUALITY}ID${IDENTITY}_${GENE}.ids > long_reads_${GENE}.ids" >> $LOG
+    tail -n +$THRESHOLD1 $HERE/$GENE/size_readsQ${QUALITY}ID${IDENTITY}_${GENE}.ids | awk '{print $1" long"}' >> $HERE/$GENE/reads_short_long_${GENE}.ids
+    echo "$(wc -l $HERE/$GENE/long_reads_${GENE}.ids) reads in long_reads_${GENE}.ids" >>$LOG
+fi
+
+sort $HERE/$GENE/reads_H1_H2_$GENE.ids > $HERE/$GENE/sorted_reads_H1_H2_$GENE.ids
+sort $HERE/$GENE/reads_short_long_$GENE.ids > $HERE/$GENE/sorted_reads_short_long_$GENE.ids
+
+join -a 1 -a 2 -e 'NA' -o 0,1.2,2.2 $HERE/$GENE/sorted_reads_H1_H2_$GENE.ids $HERE/$GENE/sorted_reads_short_long_$GENE.ids > $HERE/$GENE/annotation_haplo_$GENE.txt
+
+
+module unload bcftools
+module unload whatshap
+module unload freebayes
+module unload htslib
+module unload samtools
+

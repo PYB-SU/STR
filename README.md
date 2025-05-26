@@ -26,7 +26,7 @@ stepO.job HERE GENE
 Extract reads overlaping GENE position from bam files in $HERE/BAM 
 * stepR.job : extract reads mapping before AND after repeat region
 ```
-stepR.job 
+stepR.job HERE GENE
 ```
 Align each read in BAM file with repeat flanking sequences taken at increasing distances 
 Select result providing the largest number of reads

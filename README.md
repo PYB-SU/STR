@@ -51,4 +51,4 @@ stepM.job HERE GENE MOD
 ```
 extract methylation information from BAM files in HERE/METHYL for GENE and modification MOD
 ## STRops
-An R package taking the ouptut files of the PIPELINE t draw waterfall and methylation
+A R package processing the ouptut files of the PIPELINE to draw waterfall and methylation plots

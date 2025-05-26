@@ -7,6 +7,9 @@ The code is organized as :
 
 ## PIPELINE
 * stepA.sh : obtain GENE coordinates from T2T genome
+```
+code
+```
 * stepM.sh : map fastq to T2T
 * stepO.job : extract reads overlaping GENE
 * stepR.job : extract reads mapping before AND after repeat region

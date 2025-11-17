@@ -6,33 +6,44 @@ The code is organized as :
 * STRops : an R package for downstream computation
 
 ## PREQUISITES
-A gff3 T2T genome file named  chm13.draft_v2.0.gene_annotation.gff3. Its location can be changed by changing REFS.
-A fastq file for the T2T genome in REFS directory.
-
 The Shell commands use the following tools : 
-
+* bedtools
+* bgzip
+* 
+* minimap2
+* samtools
+* seqtk
+* zcat
 
 ## PIPELINE
-* stepA.sh : obtain GENE coordinates from T2T genome
+* stepA.sh : obtain GENE coordinates from T2T genome 
 ```
 stepA.sh GENE repeat_left repeat_right
 ```
-GENE chromosome and position is looked for in $GENOME.gff3 file. 
-Then flanking sequences ending in repeat_left and starting in repeat_right with various sizes are extracted from $GENOME.fa. 
+Modify in file : 
+* $REFS directory : contains reference files, including  
+* $GENOME_GFF : a gff3 T2T genome file named.
+* $GENOME_FA : a fastq file for the T2T genome.
+
+Looks up GENE for chromosome and position in $GENOME.gff3 file. 
+Extracts flanking sequences flanking the repeat: to the left of repeat_left and to the right of repeat_right. 
+Sequences of various sizes are extracted from $GENOME.fa. 
 Sequence files are stored in $PIPELINEDIR/GENE
 
-* stepM.sh : submit batch jobs to map fastq to T2T
+* stepM.sh : submit batch jobs to map initial fastq to T2T
 ```
 stepM.sh HERE GO DEP
 ```
-Write .job files to perform mapping for each fastsq file found in $HERE/FASTQ. 
+Write .job files to perform mapping for each file found in $HERE/BAM-ORIG (unaligned BAM file) or $HERE/FASTQ (fastq file). 
 If GO is not null, submit .job to slurm. 
 If DEP is not null, add DEP as a dependency in sbatch
+
 * stepO.job : extract reads overlaping GENE
 ```
 stepO.job HERE GENE
 ```
-Extract reads overlaping GENE position from bam files in $HERE/BAM 
+Extract reads overlaping GENE position from bam files in $HERE/BAM
+
 * stepR.job : extract reads mapping before AND after repeat region
 ```
 stepR.job HERE GENE

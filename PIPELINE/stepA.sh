@@ -10,7 +10,8 @@ fi
 
 PIPELINEDIR=/home/boelle/STR/PIPELINE/
 REFS=/softs/cinbios/references/Homo_sapiens.T2T
-
+GENOME_GFF=chm13.draft_v2.0.gene_annotation.gff3
+GENOME_FA=chm13.v2.fa
 if [ $GENE = "-h" ]
 then
     echo "get_primer_and_flanking_for_gene.sh GENE REPEATLEFT REPEATRIGHT"
@@ -37,7 +38,7 @@ then
     exit 2
 fi
 
-CHR_POS=$(grep "gene_name=$GENE" $REFS/chm13.draft_v2.0.gene_annotation.gff3 | head -n 1 | awk '{print $1" "$4" "$5}')
+CHR_POS=$(grep "gene_name=$GENE" $REFS/$GENOME_GFF | head -n 1 | awk '{print $1" "$4" "$5}')
 CHR=$(echo $CHR_POS | awk '{print $1}')
 POSLEFT=$(echo $CHR_POS | awk '{print $2}')
 POSRIGHT=$(echo $CHR_POS | awk '{print $3}')
@@ -74,8 +75,8 @@ do
     do
 	echo "primer +/-$LEN $DIR"
 	echo $CHR $REPEATleft $REPEATright $LEN $DIR | awk '{mid=int($2+$3)/2; if ($5 == "left") {print $1"\t"sprintf("%d",mid-100-$4)"\t"sprintf("%d",mid-$4)} else if ($5=="right") {print $1"\t"sprintf("%d",mid+$4)"\t"sprintf("%d",mid+$4+100)}}' > $PIPELINEDIR/$GENE/primers-$DIR-$LEN.bed
-	echo "running bedtools getfasta -fi $REFS/chm13v2.0.fa -bed $PIPELINEDIR/$GENE/primers-$DIR-$LEN.bed > $PIPELINEDIR/$GENE/primers-$DIR-$LEN.fa"
-	bedtools getfasta -fi $REFS/chm13v2.0.fa -bed $PIPELINEDIR/$GENE/primers-$DIR-$LEN.bed | sed -e 's/\([a-z]\)/\U\1/g' > $PIPELINEDIR/$GENE/primers-$DIR-$LEN.fa
+	echo "running bedtools getfasta -fi $REFS/$GENOME_FA -bed $PIPELINEDIR/$GENE/primers-$DIR-$LEN.bed > $PIPELINEDIR/$GENE/primers-$DIR-$LEN.fa"
+	bedtools getfasta -fi $REFS/$GENOME_FA -bed $PIPELINEDIR/$GENE/primers-$DIR-$LEN.bed | sed -e 's/\([a-z]\)/\U\1/g' > $PIPELINEDIR/$GENE/primers-$DIR-$LEN.fa
 	seqtk seq -r  $PIPELINEDIR/$GENE/primers-$DIR-$LEN.fa >  $PIPELINEDIR/$GENE/primers-$DIR-$LEN-rev.fa
     done
 done
@@ -94,8 +95,8 @@ do
 	echo $CHR $REPEAT $LEN $DIR | awk '{ if ($4 == "left") {print $1"\t"$2-$3"\t"$2} else if ($4=="right") {print $1"\t"$2"\t"$2+$3}}'
 	echo $CHR $REPEAT $LEN $DIR | awk '{ if ($4 == "left") {print $1"\t"$2-$3"\t"$2} else if ($4=="right") {print $1"\t"$2"\t"$2+$3}}' > $PIPELINEDIR/$GENE/flank-$DIR-$LEN.bed
 	cat $PIPELINEDIR/$GENE/flank-$DIR-$LEN.bed
-	echo "running bedtools getfasta -fi $REFS/chm13v2.0.fa -bed $PIPELINEDIR/$GENE/flank-$DIR-$LEN.bed > $PIPELINEDIR/$GENE/flank-$DIR-$LEN.fa"
-	bedtools getfasta -fi $REFS/chm13v2.0.fa -bed $PIPELINEDIR/$GENE/flank-$DIR-$LEN.bed | sed -e 's/\([a-z]\)/\U\1/g' > $PIPELINEDIR/$GENE/flank-$DIR-$LEN.fa
+	echo "running bedtools getfasta -fi $REFS/$GENOME_FA -bed $PIPELINEDIR/$GENE/flank-$DIR-$LEN.bed > $PIPELINEDIR/$GENE/flank-$DIR-$LEN.fa"
+	bedtools getfasta -fi $REFS/$GENOME_FA -bed $PIPELINEDIR/$GENE/flank-$DIR-$LEN.bed | sed -e 's/\([a-z]\)/\U\1/g' > $PIPELINEDIR/$GENE/flank-$DIR-$LEN.fa
 	seqtk seq -r  $PIPELINEDIR/$GENE/flank-$DIR-$LEN.fa >  $PIPELINEDIR/$GENE/flank-$DIR-${LEN}_rev.fa
     done
 done

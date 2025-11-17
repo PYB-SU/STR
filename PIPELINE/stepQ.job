@@ -1,0 +1,151 @@
+#!/bin/bash
+#SBATCH --ntasks=1
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=8
+
+THREADS=8
+PIPELINEDIR=/home/boelle/STR/PIPELINE
+
+# this is the threshold that sets matching of a flanking sequence
+
+
+if [ $1 = "-h" ]
+then
+    echo "sbatch reads_overlaping_repeat_region.job GENE PRIMERPOS IDENTITY"
+    echo -e "\textract reads from overlap_GENE.bam that align with a primer +/-PRIMERPOS before and after with $IDENTITY identity"
+    echo -e "\texecute in charONT directory"
+    exit
+fi
+
+HERE=$1
+
+if [ "x"$HERE = "x" ]
+then
+    echo "ROOT DIRECTORY must be provided"
+    exit
+fi
+
+GENE=$2
+if [ "x"$GENE = "x" ]
+then
+    echo "GENE must be provided"
+    exit
+fi
+
+PRIMERPOS=$3
+if [ "x"$PRIMERPOS = "x" ]
+then
+    echo "PRIMERPOS must be provided"
+    exit
+fi
+
+IDENTITY=$4
+if [ "x"$IDENTITY = "x" ]
+then
+    echo "IDENTITY must be provided"
+    exit
+fi
+
+LOG=$HERE/repeat_overlaping_region_${GENE}_$PRIMERPOS.log
+
+OVERLAPDIR=$HERE/OVERLAPS
+RACINE=overlap_${GENE}
+
+echo "starting reeads_overlaping_repeat_region for $HERE/$GENE/$PRIMERPOS" > $LOG
+
+echo "using FASTQ file $OVERLAPDIR/$RACINE.fastq.gz" >> $LOG
+
+echo "using PRIMER located +/-$PRIMERPOS bp from repeat" >> $LOG
+
+echo "keeping reads with >$IDENTITY identity">>$LOG
+
+PRIMER=$PIPELINEDIR/$GENE/primers-
+
+cd $HERE/$GENE
+
+TARGETDIR=$HERE/$GENE/tmp_${PRIMERPOS}_${IDENTITY}
+if [ -d $TARGETDIR ]
+then
+    rm -rf $TARGETDIR
+fi
+mkdir $TARGETDIR
+
+echo "output to $TARGETDIR" >> $LOG
+
+if [ ! -f $OVERLAPDIR/$RACINE.fastq.gz ]
+then
+    echo "$RACINE.fastq.gz not found in $OVERLAPDIR" >>$LOG
+fi
+
+if [ -f $PIPELINEDIR/$GENE/primers-right-$PRIMERPOS.fa ]
+then
+    echo "using $PIPELINEDIR/$GENE/primers-[left|right]-$PRIMERPOS.fa" >> $LOG
+else
+    echo "$PIPELINEDIR/$GENE/primers-[left|right]-$PRIMERPOS.fa not found">>$LOG
+    echo "run $PIPELINEDIR/get_primer_and_flanking_for_gene.sh PRIMERPOS">>$LOG
+fi
+
+cd $TARGETDIR
+echo "moving to $TARGETDIR" >> $LOG
+
+module load samtools
+
+
+module load seqtk
+seqtk seq -A $OVERLAPDIR/$RACINE.fastq.gz >  $TARGETDIR/${RACINE}.fasta
+module unload seqtk
+
+module load emboss
+
+for direction in left right
+do
+    water -gapopen 10 -gapextend 1 -outfile stdout $PRIMER$direction-$PRIMERPOS-rev.fa $TARGETDIR/${RACINE}.fasta -aformat simple -awidth 200 -stdout| tr '/' ' ' > $TARGETDIR/$RACINE.$direction.align
+    awk -v side=$direction '{if ($0=="") {} else if ($2=="Score:") {score=$3} else if ($2=="Length:") {lenlocalg=$3} else if ($2=="Identity:") {identity=$3} else if ($2=="Gaps:") {gaps=$3} else if ($2=="2:") {read=$3} else if (substr($1,1,12)==substr(read,1,12)) {print "@"read" "$2" "$4" "score" "lenlocalg" "identity" "gaps}}' $TARGETDIR/$RACINE.$direction.align | grep -v -e "^@ " | tr -d '@' | sort -k1 > $TARGETDIR/$RACINE.$direction.ids
+# we have read (1) / start (2)/ end (3) / score (4) / lenalg (5) / id (6) / gap (7)    
+echo "$(cat $TARGETDIR/$RACINE.$direction.ids | wc -l) reads map on the $direction">>$LOG
+
+done
+module unload emboss
+
+echo "mapped reads to primers">>$LOG
+
+#find matching with identity > $IDENTITY
+awk -vIDENTITY="$IDENTITY" 'NR==FNR {seen3[$1]=$1; identity[$1]=$6; next} $1 in seen3 {if ((identity[$1]>IDENTITY) && ($6 > IDENTITY)) {print seen3[$1]}}' $TARGETDIR/${RACINE}.left.ids $TARGETDIR/${RACINE}.right.ids | grep -v "*" >  $TARGETDIR/matched_${RACINE}_common_reads.ids
+
+echo "$(cat $TARGETDIR/matched_${RACINE}_common_reads.ids | wc -l) map left and right"
+
+#find matching on one side only with identity > $IDENTITY
+awk -vIDENTITY="$IDENTITY" 'NR==FNR {seen3[$1]=$1; next} !($1 in seen3) {if ($6> IDENTITY) {print $1}}' $TARGETDIR/matched_${RACINE}_common_reads.ids $TARGETDIR/${RACINE}.left.ids | grep -v "*" > $TARGETDIR/unmatched_${RACINE}_left_reads.ids  
+
+awk -vIDENTITY="$IDENTITY" 'NR==FNR {seen3[$1]=$1; next} !($1 in seen3) {if ($6> IDENTITY) {print $1}}' $TARGETDIR/matched_${RACINE}_common_reads.ids $TARGETDIR/${RACINE}.right.ids | grep -v "*" > $TARGETDIR/unmatched_${RACINE}_right_reads.ids  
+
+cat  $TARGETDIR/unmatched_${RACINE}_left_reads.ids  $TARGETDIR/unmatched_${RACINE}_right_reads.ids >  $TARGETDIR/unmatched_${RACINE}_reads.ids
+
+module load seqtk
+module load htslib
+
+seqtk subseq $OVERLAPDIR/$RACINE.fastq.gz $TARGETDIR/matched_${RACINE}_common_reads.ids | cut -d ' ' -f 1 | bgzip > $TARGETDIR/$RACINE.fastq.gz
+
+seqtk subseq $OVERLAPDIR/$RACINE.fastq.gz $TARGETDIR/unmatched_${RACINE}_reads.ids | cut -d ' ' -f 1 | bgzip > $TARGETDIR/${RACINE}_unmatched.fastq.gz
+
+seqtk seq -A $TARGETDIR/$RACINE.fastq.gz >  $TARGETDIR/${RACINE}.fasta
+
+seqtk seq -A $TARGETDIR/${RACINE}_unmatched.fastq.gz >  $TARGETDIR/${RACINE}_unmatched.fasta
+
+samtools view -b -N  $TARGETDIR/matched_${RACINE}_common_reads.ids $OVERLAPDIR/$RACINE.bam -o $TARGETDIR/${RACINE}.bam
+
+samtools view -b -N  $TARGETDIR/unmatched_${RACINE}_reads.ids $OVERLAPDIR/$RACINE.bam -o $TARGETDIR/${RACINE}_unmatched.bam
+
+module unload seqtk
+module unload htslib
+module unload samtools
+
+
+NB_READS=$(wc -l $TARGETDIR/matched_${RACINE}_common_reads.ids | awk '{print $1}')
+
+echo "mapped $NB_READS reads to primers">>$LOG
+
+echo $NB_READS
+
+
+

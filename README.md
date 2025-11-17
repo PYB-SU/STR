@@ -5,13 +5,22 @@ The code is organized as :
 * PIPELINE : suite of bash shells
 * STRops : an R package for downstream computation
 
+## PREQUISITES
+A gff3 T2T genome file named  chm13.draft_v2.0.gene_annotation.gff3. Its location can be changed by changing REFS.
+A fastq file for the T2T genome in REFS directory.
+
+The Shell commands use the following tools : 
+
+
 ## PIPELINE
 * stepA.sh : obtain GENE coordinates from T2T genome
 ```
-stepA.sh GENE coord_left coord_right
+stepA.sh GENE repeat_left repeat_right
 ```
-Lookup GENE in T2T genome to find coordinates. Create sequence files centered around coord_left-coord_right
-with various flanking sizes.
+GENE chromosome and position is looked for in $GENOME.gff3 file. 
+Then flanking sequences ending in repeat_left and starting in repeat_right with various sizes are extracted from $GENOME.fa. 
+Sequence files are stored in $PIPELINEDIR/GENE
+
 * stepM.sh : submit batch jobs to map fastq to T2T
 ```
 stepM.sh HERE GO DEP
